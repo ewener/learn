@@ -1,0 +1,108 @@
+##### 一. gopath
+
+* 指向一个或多个工作区间。
+
+>没有添加gopath的话，不同包之间的导入是会报错的。goland需要配置project gopath。
+
+##### 二. 构建与安装
+
+* 构建：go build。
+
+* 安装：go install。
+
+* 构建和安装都会执行编译、打包等操作，操作生成的任何文件都会先保存到某个临时目录。
+
+* 构建库源码文件：结果文件只会存在于临时目录，意义主要在于检查和验证。
+
+* 构建命令源码文件：结果文件会搬到源码文件所在的目录。
+
+* 安装操作会先执行构建，然后在链接，并把结果文件搬运到指定目录。
+
+  安装库源码文件：结果文件搬运到所在工作区pkg目录下的某个子目录。
+
+  安装命令源码文件：结果文件搬运到所在工作区的bin目录下或者环境变量gobin指向的目录。
+
+* 构建时，默认不会构建目标代码包所依赖的代码包，如果依赖代码包的归档文件不存在，或者源码文件有变化，还是会编译的。如果需要强制编译，可以在命令中加入标记“-a”，此时，不管是目标代码，还是依赖包，即使是标准库也都会被编译。另外，如果不但要编译依赖的包，还要安装它们的归档文件，可以加上标记“-i”。
+
+* 确定哪些代码包被编译方法：
+
+  * 加上“-x”，可以看到build 执行了哪些操作，另外，加上“-n” ，只查看具体操作而不执行。
+  * 加上“-v”，可以看到编译的代码包名称，与“-a” 标记搭配时很有用。
+
+* go get：会自动从一些主流的公用代码库下载目标代码包，并把他们安装到环境变量gopath包含的第一个工作区相应目录中。如果存在环境变量gobin，那么仅包含命令源码文件的代码包会被安装到gobin指向的那个目录。
+
+  * -u：下载并安装代码包，不论工作区是否存在他们。
+  * -d：只下载代码包，不安装代码包。
+  * -fix：在下载代码包后先运行一个根据当前go语言版本修正代码的工具，然后在安装代码包。
+  * -t：同时下载测试需要的代码包。
+  * -insecure：允许通过非安全的网络协议下载和安装代码包。http就是这样的协议。
+
+  go get比较基础，不提供依赖管理的功能。
+
+##### 三. 源文件
+
+> go项目结构：
+>
+> > bin：安装产生的可执行文件
+>
+> > pkg：安装产生的归档文件，pkg和归档文件中间还有一层目录，叫平台相关目录，名称由build目标系统+“_”+目标计算架构的代号组成，如：linux_amd64 、windows_amd64。
+>
+> > src：源码文件，会以代码包的的形式组织起来，一个代码包对应一个目录。
+
+1. 命令源码文件
+
+   * 如果一个源码文件声明属于main包，并且包含一个无参数声明且无结果声明的main函数，那么就是命令文件。
+
+   * 对于一个独立的程序来说，命令源码文件只会也只有一个。
+
+   * 通过命令源码文件生成的可执行文件具备接收参数的能力。
+
+     ```go
+     package main
+     
+     import (
+     		"fmt"
+     	"flag"
+     	)
+     
+     var name string
+     
+     var cmLine = flag.NewFlagSet("", flag.PanicOnError)
+     
+     func init() {
+     	//flag.StringVar(&name,"name","everyone","the greeting object.")
+     	//flag.Usage = func() {
+     	//	fmt.Fprintf(os.Stderr,"Usage of %s :\n ","question")
+     	//	flag.PrintDefaults()
+     	//}
+     	//flag.CommandLine = flag.NewFlagSet("",flag.PanicOnError)
+     	//flag.CommandLine.Usage = func() {
+     	//		fmt.Fprintf(os.Stderr,"Usage of %s :\n ","question")
+     	//		flag.PrintDefaults()
+     	//}
+     
+     	cmLine.StringVar(&name, "name", "everyone", "the greeting object.")
+     }
+     func main() {
+     
+     	//flag.Parse()
+         //获取命令参数
+     	var ags = os.Args[1:]
+     	cmLine.Parse(ags)
+     	fmt.Printf("hello,%s!\n", name)
+     
+     }
+     ```
+
+     
+
+2. 库源码文件
+
+3. 测试源码文件
+
+
+
+
+
+
+
