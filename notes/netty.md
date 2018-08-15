@@ -4,22 +4,22 @@
 
 ### 1. IO阻塞模型
 
-​            ![](D:\学习\learn\learn\notes\image\阻塞模型.png)
+​            ![](https://github.com/XwDai/learn/raw/master/notes/image/%E9%98%BB%E5%A1%9E%E6%A8%A1%E5%9E%8B.png)
 
 ### 2. 非阻塞IO模型
 
-![](D:\学习\learn\learn\notes\image\非阻塞模型.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/%E9%9D%9E%E9%98%BB%E5%A1%9E%E6%A8%A1%E5%9E%8B.png)
 
 ### 3. IO复用模型
 
 > 1. select/poll，阻塞在select操作上，select/poll可以侦测多个fd(文件描述)是否处于就绪状态，它是顺序扫描fd是否就绪，而且支持fd的数量有限（默认1024，由FD_SETSIZE设置，可以选择修改这个宏然后重新编译内核，不过这会带来网络效率的下降），因此它的使用受到了制约。
 > 2. epoll，它基于事件驱动的方式代替顺序扫描，因此性能更高，当 fd就绪时，立即回调函数rollback。
 
-![](D:\学习\learn\learn\notes\image\io复用模型.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/io%E5%A4%8D%E7%94%A8%E6%A8%A1%E5%9E%8B.png)
 
 ### 4. 信号驱动IO模型
 
-![](D:\学习\learn\learn\notes\image\信号驱动模型.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/%E4%BF%A1%E5%8F%B7%E9%A9%B1%E5%8A%A8%E6%A8%A1%E5%9E%8B.png)
 
 ### 5. 异步IO
 
@@ -30,7 +30,7 @@
 > 1. 信号驱动：由内核通知我们何时开始一个IO操作。
 > 2. 异步IO：由内核通知我们IO操作何时已完成。
 
-![](D:\学习\learn\learn\notes\image\异步模型.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/%E5%BC%82%E6%AD%A5%E6%A8%A1%E5%9E%8B.png)
 
 ## 二。IO多路复用技术
 
@@ -70,13 +70,13 @@
 
 ​                              
 
-![](D:\学习\learn\learn\notes\image\buffer继承关系图.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/buffer%E7%BB%A7%E6%89%BF%E5%85%B3%E7%B3%BB%E5%9B%BE.png)
 
 ### 2. 通道Channel
 
 > 可以通过它读取和写入数据，它与流不同之处在于通道是双向的，流只能在一个方向移动（一个流必须是InputStream或OutputStream的子类），而且通道可以用于读、写、或同时读写。因为它是全双工的，所以比流更好的映射底层操作系统API。特别是在UNIX网络编程模型中，底层操作系统的通道都是全双工的，同时支持读写操作。
 
-![](D:\学习\learn\learn\notes\image\Channel继承关系图.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/Channel%E7%BB%A7%E6%89%BF%E5%85%B3%E7%B3%BB%E5%9B%BE.png)
 
 ### 3. 多路复用器Selector
 
@@ -84,7 +84,7 @@
 
 ## 四。NIO服务端序列图
 
-​       ![](D:\学习\learn\learn\notes\image\NIO服务端通信序列图.png)
+​       ![](https://github.com/XwDai/learn/raw/master/notes/image/NIO%E6%9C%8D%E5%8A%A1%E7%AB%AF%E9%80%9A%E4%BF%A1%E5%BA%8F%E5%88%97%E5%9B%BE.png)
 
 
 
@@ -92,7 +92,7 @@
 
 ​      
 
-![](D:\学习\learn\learn\notes\image\NIO客户端序列图.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/NIO%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%BA%8F%E5%88%97%E5%9B%BE.png)
 
 ## 六。API
 
@@ -104,7 +104,7 @@
 
 ## 八。IO模型 对比
 
-![](D:\学习\learn\learn\notes\image\io模型对比.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/io%E6%A8%A1%E5%9E%8B%E5%AF%B9%E6%AF%94.png)
 
 ## 九。netty
 
@@ -116,7 +116,7 @@
 2. 进行MSS大小的TCP分段。
 3. 以太网帧的playload大于MTU进行ip分片。
 
-![](D:\学习\learn\learn\notes\image\tcp粘包拆包问题原因.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/tcp%E7%B2%98%E5%8C%85%E6%8B%86%E5%8C%85%E9%97%AE%E9%A2%98%E5%8E%9F%E5%9B%A0.png)
 
 > 解决策略：
 
@@ -804,13 +804,13 @@ public class HttpFileServerHandler extends
 
 * 客户端发送服务端的http请求：
 
-![](D:\学习\learn\learn\notes\image\websocket客户端请求.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/websocket%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%AF%B7%E6%B1%82.png)
 
 “1”表名这是一个申请协议升级的http请求，服务端生成应答信息返给客户端，客户端与服务端的websocket连接就建立了。并且这个连接会持续到某一方关闭。
 
 * 服务端返回：
 
-  ![](D:\学习\learn\learn\notes\image\websocket服务端应答.png)
+  ![](https://github.com/XwDai/learn/raw/master/notes/image/websocket%E6%9C%8D%E5%8A%A1%E7%AB%AF%E5%BA%94%E7%AD%94.png)
 
 请求中的“2”是随机的，服务端会用这些数据构造出一个SHA-1的信息摘要：
 
@@ -822,7 +822,7 @@ public class HttpFileServerHandler extends
 
 * websocket生命周期
 
-  ![](D:\学习\learn\learn\notes\image\websocket生命周期.png)
+  ![](https://github.com/XwDai/learn/raw/master/notes/image/websocket%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F.png)
 
   websocket连接关闭
 
@@ -869,6 +869,6 @@ public class HttpFileServerHandler extends
 ## 十二.netty参数配置
 
 
-![](D:\学习\learn\learn\notes\image\netty参数一.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/netty参数一.png)
 
-![](D:\学习\learn\learn\notes\image\netty参数二.png)
+![](https://github.com/XwDai/learn/raw/master/notes/image/netty参数二.png)
