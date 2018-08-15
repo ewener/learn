@@ -1,3 +1,7 @@
+
+
+
+
 ## 一。linux网络IO模型
 
 > 前期知识储备：linux内核将所有外部设备都看作一个文件夹操作，对一个文件的读写操作会调用内核提供的系统命令，返回一个file descriptor(fd 文件描述符)，描述符就是一个数字，它指向内核的一个结构体（文件路径，数据区等一些属性）。
@@ -554,10 +558,10 @@ public class HttpFileServer {
 	    url = args[1];
 	new HttpFileServer().run(port, url);
     }
-
 ```
-
+> handler
 ```java
+
 import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
 import static io.netty.handler.codec.http.HttpHeaders.setContentLength;
 import static io.netty.handler.codec.http.HttpHeaders.Names.CONNECTION;
@@ -832,11 +836,560 @@ public class HttpFileServerHandler extends
 
 * netty websocket协议开发
 
+  > server端
+
+  ```java
+  import io.netty.bootstrap.ServerBootstrap;
+  import io.netty.channel.Channel;
+  import io.netty.channel.ChannelInitializer;
+  import io.netty.channel.ChannelPipeline;
+  import io.netty.channel.EventLoopGroup;
+  import io.netty.channel.nio.NioEventLoopGroup;
+  import io.netty.channel.socket.SocketChannel;
+  import io.netty.channel.socket.nio.NioServerSocketChannel;
+  import io.netty.handler.codec.http.HttpObjectAggregator;
+  import io.netty.handler.codec.http.HttpServerCodec;
+  import io.netty.handler.stream.ChunkedWriteHandler;
+  
+  /**
+   * @author lilinfeng
+   * @date 2014年2月14日
+   * @version 1.0
+   */
+  public class WebSocketServer {
+      public void run(int port) throws Exception {
+  	EventLoopGroup bossGroup = new NioEventLoopGroup();
+  	EventLoopGroup workerGroup = new NioEventLoopGroup();
+  	try {
+  	    ServerBootstrap b = new ServerBootstrap();
+  	    b.group(bossGroup, workerGroup)
+  		    .channel(NioServerSocketChannel.class)
+  		    .childHandler(new ChannelInitializer<SocketChannel>() {
+  
+  			@Override
+  			protected void initChannel(SocketChannel ch)
+  				throws Exception {
+  			    ChannelPipeline pipeline = ch.pipeline();
+  			    pipeline.addLast("http-codec",
+  				    new HttpServerCodec());//将请求和应答编码或解码为http消息
+  			    pipeline.addLast("aggregator",
+  				    new HttpObjectAggregator(65536));//将http消息的多个部分组合成一条完整的http消息
+  			    ch.pipeline().addLast("http-chunked",
+  				    new ChunkedWriteHandler());//向客户端发送h5文件，主要用来支持浏览器和服务端进行websocket通信。
+  			    pipeline.addLast("handler",
+  				    new WebSocketServerHandler());
+  			}
+  		    });
+  
+  	    Channel ch = b.bind(port).sync().channel();
+  	    System.out.println("Web socket server started at port " + port
+  		    + '.');
+  	    System.out
+  		    .println("Open your browser and navigate to http://localhost:"
+  			    + port + '/');
+  
+  	    ch.closeFuture().sync();
+  	} finally {
+  	    bossGroup.shutdownGracefully();
+  	    workerGroup.shutdownGracefully();
+  	}
+      }
+  
+      public static void main(String[] args) throws Exception {
+  	int port = 8080;
+  	if (args.length > 0) {
+  	    try {
+  		port = Integer.parseInt(args[0]);
+  	    } catch (NumberFormatException e) {
+  		e.printStackTrace();
+  	    }
+  	}
+  	new WebSocketServer().run(port);
+      }
+  ```
+
+  ```java
+  import static io.netty.handler.codec.http.HttpHeaders.isKeepAlive;
+  import static io.netty.handler.codec.http.HttpHeaders.setContentLength;
+  import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+  import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+  import io.netty.buffer.ByteBuf;
+  import io.netty.buffer.Unpooled;
+  import io.netty.channel.ChannelFuture;
+  import io.netty.channel.ChannelFutureListener;
+  import io.netty.channel.ChannelHandlerContext;
+  import io.netty.channel.SimpleChannelInboundHandler;
+  import io.netty.handler.codec.http.DefaultFullHttpResponse;
+  import io.netty.handler.codec.http.FullHttpRequest;
+  import io.netty.handler.codec.http.FullHttpResponse;
+  import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
+  import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
+  import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
+  import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+  import io.netty.handler.codec.http.websocketx.WebSocketFrame;
+  import io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
+  import io.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
+  import io.netty.util.CharsetUtil;
+  
+  import java.util.logging.Level;
+  import java.util.logging.Logger;
+  
+  /**
+   * @author lilinfeng
+   * @date 2014年2月14日
+   * @version 1.0
+   */
+  public class WebSocketServerHandler extends SimpleChannelInboundHandler<Object> {
+      private static final Logger logger = Logger
+  	    .getLogger(WebSocketServerHandler.class.getName());
+  
+      private WebSocketServerHandshaker handshaker;
+  
+      @Override
+      public void messageReceived(ChannelHandlerContext ctx, Object msg)
+  	    throws Exception {
+  	// 传统的HTTP接入
+  	if (msg instanceof FullHttpRequest) {
+  	    handleHttpRequest(ctx, (FullHttpRequest) msg);
+  	}
+  	// WebSocket接入
+  	else if (msg instanceof WebSocketFrame) {
+  	    handleWebSocketFrame(ctx, (WebSocketFrame) msg);
+  	}
+      }
+  
+      @Override
+      public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+  	ctx.flush();
+      }
+  
+      private void handleHttpRequest(ChannelHandlerContext ctx,
+  	    FullHttpRequest req) throws Exception {
+  
+  	// 如果HTTP解码失败，返回HHTP异常
+  	if (!req.getDecoderResult().isSuccess()
+  		|| (!"websocket".equals(req.headers().get("Upgrade")))) {
+  	    sendHttpResponse(ctx, req, new DefaultFullHttpResponse(HTTP_1_1,
+  		    BAD_REQUEST));
+  	    return;
+  	}
+  
+  	// 构造握手响应返回，本机测试
+  	WebSocketServerHandshakerFactory wsFactory = new WebSocketServerHandshakerFactory(
+  		"ws://localhost:8080/websocket", null, false);
+  	handshaker = wsFactory.newHandshaker(req);
+  	if (handshaker == null) {
+  	    WebSocketServerHandshakerFactory
+  		    .sendUnsupportedWebSocketVersionResponse(ctx.channel());
+  	} else {
+  	    handshaker.handshake(ctx.channel(), req);
+  	}
+      }
+  
+      private void handleWebSocketFrame(ChannelHandlerContext ctx,
+  	    WebSocketFrame frame) {
+  
+  	// 判断是否是关闭链路的指令
+  	if (frame instanceof CloseWebSocketFrame) {
+  	    handshaker.close(ctx.channel(),
+  		    (CloseWebSocketFrame) frame.retain());
+  	    return;
+  	}
+  	// 判断是否是Ping消息
+  	if (frame instanceof PingWebSocketFrame) {
+  	    ctx.channel().write(
+  		    new PongWebSocketFrame(frame.content().retain()));
+  	    return;
+  	}
+  	// 本例程仅支持文本消息，不支持二进制消息
+  	if (!(frame instanceof TextWebSocketFrame)) {
+  	    throw new UnsupportedOperationException(String.format(
+  		    "%s frame types not supported", frame.getClass().getName()));
+  	}
+  
+  	// 返回应答消息
+  	String request = ((TextWebSocketFrame) frame).text();
+  	if (logger.isLoggable(Level.FINE)) {
+  	    logger.fine(String.format("%s received %s", ctx.channel(), request));
+  	}
+  	ctx.channel().write(
+  		new TextWebSocketFrame(request
+  			+ " , 欢迎使用Netty WebSocket服务，现在时刻："
+  			+ new java.util.Date().toString()));
+      }
+  
+      private static void sendHttpResponse(ChannelHandlerContext ctx,
+  	    FullHttpRequest req, FullHttpResponse res) {
+  	// 返回应答给客户端
+  	if (res.getStatus().code() != 200) {
+  	    ByteBuf buf = Unpooled.copiedBuffer(res.getStatus().toString(),
+  		    CharsetUtil.UTF_8);
+  	    res.content().writeBytes(buf);
+  	    buf.release();
+  	    setContentLength(res, res.content().readableBytes());
+  	}
+  
+  	// 如果是非Keep-Alive，关闭连接
+  	ChannelFuture f = ctx.channel().writeAndFlush(res);
+  	if (!isKeepAlive(req) || res.getStatus().code() != 200) {
+  	    f.addListener(ChannelFutureListener.CLOSE);
+  	}
+      }
+  
+      @Override
+      public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+  	    throws Exception {
+  	cause.printStackTrace();
+  	ctx.close();
+      }
+  }
+  ```
+
   
 
-### 5.UDP协议开发
+### 5.UDP(用户数据报协议)协议开发
+
+> 特点：
+>
+> 1. 直接用ip协议进行UDP数据报的传输，在传输数据前，发送方和接收方相互互换信息使双方同步。
+> 2. 面向无连接、不可靠（不对数据报分组、组装、校验、排序，报文发送者不知道报文是否被对方正确接收，接收方接收到数据报不会发送确认信号）的数据报投递服务。
+> 3. 资源消耗小、处理速度快（比tcp快）、简单。
+>
+> 应用：音频、视频等可靠性要求不高的数据传输一般会使用UDP。
+
+1. udp协议
+
+   ![](https://github.com/XwDai/learn/raw/master/notes/image/udp%E5%8D%8F%E8%AE%AE.jpg)
+
+* 注意：伪首部是一个临时结构，既不向上也不向下传递，仅仅为了保证可以校验套接字的正确性。
+
+> client：
+
+```java
+import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.DatagramPacket;
+import io.netty.channel.socket.nio.NioDatagramChannel;
+import io.netty.util.CharsetUtil;
+
+import java.net.InetSocketAddress;
+
+/**
+ * @author lilinfeng
+ * @date 2014年2月14日
+ * @version 1.0
+ */
+public class ChineseProverbClient {
+
+    public void run(int port) throws Exception {
+	EventLoopGroup group = new NioEventLoopGroup();
+	try {
+	    Bootstrap b = new Bootstrap();
+	    b.group(group).channel(NioDatagramChannel.class)
+		    .option(ChannelOption.SO_BROADCAST, true)
+		    .handler(new ChineseProverbClientHandler());
+	    Channel ch = b.bind(0).sync().channel();
+	    // 向网段内的所有机器广播UDP消息
+	    ch.writeAndFlush(
+		    new DatagramPacket(Unpooled.copiedBuffer("谚语字典查询?",
+			    CharsetUtil.UTF_8), new InetSocketAddress(
+			    "255.255.255.255", port))).sync();
+	    if (!ch.closeFuture().await(15000)) {
+		System.out.println("查询超时!");
+	    }
+	} finally {
+	    group.shutdownGracefully();
+	}
+    }
+
+    public static void main(String[] args) throws Exception {
+	int port = 8080;
+	if (args.length > 0) {
+	    try {
+		port = Integer.parseInt(args[0]);
+	    } catch (NumberFormatException e) {
+		e.printStackTrace();
+	    }
+	}
+	new ChineseProverbClient().run(port);
+    }
+}
+```
+
+> client handler：
+
+```java
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.socket.DatagramPacket;
+import io.netty.util.CharsetUtil;
+
+/**
+ * @author lilinfeng
+ * @date 2014年2月14日
+ * @version 1.0
+ */
+public class ChineseProverbClientHandler extends
+	SimpleChannelInboundHandler<DatagramPacket> {
+
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, DatagramPacket msg)
+	    throws Exception {
+	String response = msg.content().toString(CharsetUtil.UTF_8);
+	if (response.startsWith("谚语查询结果: ")) {
+	    System.out.println(response);
+	    ctx.close();
+	}
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+	    throws Exception {
+	cause.printStackTrace();
+	ctx.close();
+    }
+}
+```
+
+> server：
+
+```java
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioDatagramChannel;
+
+/**
+ * @author lilinfeng
+ * @date 2014年2月14日
+ * @version 1.0
+ */
+public class ChineseProverbServer {
+    public void run(int port) throws Exception {
+	EventLoopGroup group = new NioEventLoopGroup();
+	try {
+	    Bootstrap b = new Bootstrap();
+	    b.group(group).channel(NioDatagramChannel.class)
+		    .option(ChannelOption.SO_BROADCAST, true)
+		    .handler(new ChineseProverbServerHandler());
+	    b.bind(port).sync().channel().closeFuture().await();
+	} finally {
+	    group.shutdownGracefully();
+	}
+    }
+
+    public static void main(String[] args) throws Exception {
+	int port = 8080;
+	if (args.length > 0) {
+	    try {
+		port = Integer.parseInt(args[0]);
+	    } catch (NumberFormatException e) {
+		e.printStackTrace();
+	    }
+	}
+	new ChineseProverbServer().run(port);
+    }
+}
+```
+
+> server handler：
+
+```java
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.socket.DatagramPacket;
+import io.netty.util.CharsetUtil;
+import io.netty.util.internal.ThreadLocalRandom;
+
+/**
+ * @author lilinfeng
+ * @date 2014年2月14日
+ * @version 1.0
+ */
+public class ChineseProverbServerHandler extends
+	SimpleChannelInboundHandler<DatagramPacket> {
+
+    // 谚语列表
+    private static final String[] DICTIONARY = { "只要功夫深，铁棒磨成针。",
+	    "旧时王谢堂前燕，飞入寻常百姓家。", "洛阳亲友如相问，一片冰心在玉壶。", "一寸光阴一寸金，寸金难买寸光阴。",
+	    "老骥伏枥，志在千里。烈士暮年，壮心不已!" };
+
+    private String nextQuote() {
+	int quoteId = ThreadLocalRandom.current().nextInt(DICTIONARY.length);
+	return DICTIONARY[quoteId];
+    }
+
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, DatagramPacket packet)
+	    throws Exception {
+	String req = packet.content().toString(CharsetUtil.UTF_8);
+	System.out.println(req);
+	if ("谚语字典查询?".equals(req)) {
+	    ctx.writeAndFlush(new DatagramPacket(Unpooled.copiedBuffer(
+		    "谚语查询结果: " + nextQuote(), CharsetUtil.UTF_8), packet
+		    .sender()));
+	}
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+	    throws Exception {
+	ctx.close();
+	cause.printStackTrace();
+    }
+}
+
+```
+
+* 说明：由于udp无连接，因此不需要为连接（ChannelPipeline）设置handler。
 
 ### 6.文件传输
+
+> server：
+
+```java
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.LineBasedFrameDecoder;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+import io.netty.util.CharsetUtil;
+
+/**
+ * @author lilinfeng
+ * @date 2014年2月14日
+ * @version 1.0
+ */
+public class FileServer {
+
+    public void run(int port) throws Exception {
+	EventLoopGroup bossGroup = new NioEventLoopGroup();
+	EventLoopGroup workerGroup = new NioEventLoopGroup();
+	try {
+	    ServerBootstrap b = new ServerBootstrap();
+	    b.group(bossGroup, workerGroup)
+		    .channel(NioServerSocketChannel.class)
+		    .option(ChannelOption.SO_BACKLOG, 100)
+		    .childHandler(new ChannelInitializer<SocketChannel>() {
+			/*
+			 * (non-Javadoc)
+			 * 
+			 * @see
+			 * io.netty.channel.ChannelInitializer#initChannel(io
+			 * .netty.channel.Channel)
+			 */
+			public void initChannel(SocketChannel ch)
+				throws Exception {
+                //如果大文件传输，将文件全部映射到内存，很可能导致内存溢出，
+                //可以使用netty的ChunkedWriteHandler来解决大文件或者码流传输过程中可能发生的内存溢出                   的问题
+			    ch.pipeline().addLast(
+				    new StringEncoder(CharsetUtil.UTF_8),
+				    new LineBasedFrameDecoder(1024),
+				    new StringDecoder(CharsetUtil.UTF_8),
+				    new FileServerHandler());
+			}
+		    });
+	    ChannelFuture f = b.bind(port).sync();
+	    System.out.println("Start file server at port : " + port);
+	    f.channel().closeFuture().sync();
+	} finally {
+	    // 优雅停机
+	    bossGroup.shutdownGracefully();
+	    workerGroup.shutdownGracefully();
+	}
+    }
+
+    public static void main(String[] args) throws Exception {
+	int port = 8080;
+	if (args.length > 0) {
+	    try {
+		port = Integer.parseInt(args[0]);
+	    } catch (NumberFormatException e) {
+		e.printStackTrace();
+	    }
+	}
+	new FileServer().run(port);
+    }
+}
+
+```
+
+> handler：
+
+```java
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.DefaultFileRegion;
+import io.netty.channel.FileRegion;
+import io.netty.channel.SimpleChannelInboundHandler;
+
+import java.io.File;
+import java.io.RandomAccessFile;
+
+/**
+ * @author Administrator
+ * @date 2014年3月9日
+ * @version 1.0
+ */
+public class FileServerHandler extends SimpleChannelInboundHandler<String> {
+
+    private static final String CR = System.getProperty("line.separator");
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see
+     * io.netty.channel.SimpleChannelInboundHandler#messageReceived(io.netty
+     * .channel.ChannelHandlerContext, java.lang.Object)
+     */
+    public void messageReceived(ChannelHandlerContext ctx, String msg)
+	    throws Exception {
+	File file = new File(msg);
+	if (file.exists()) {
+	    if (!file.isFile()) {
+		ctx.writeAndFlush("Not a file : " + file + CR);
+		return;
+	    }
+	    ctx.write(file + " " + file.length() + CR);
+	    RandomAccessFile randomAccessFile = new RandomAccessFile(msg, "r");
+        //fileRegion支持零拷贝。不支持零拷贝的操作系统，可能表现更差或者失败。
+        //FileChannel至少有4个已知的bug，如果要使用零拷贝，需要升级jdk到1.6.0_18或者更高的版本。
+	    FileRegion region = new DefaultFileRegion(
+		    randomAccessFile.getChannel(), 0, randomAccessFile.length());
+	    ctx.write(region);
+	    ctx.writeAndFlush(CR);
+	    randomAccessFile.close();
+	} else {
+	    ctx.writeAndFlush("File not found: " + file + CR);
+	}
+    }
+
+    /*
+     * (non-Javadoc)
+     * 
+     * @see
+     * io.netty.channel.ChannelHandlerAdapter#exceptionCaught(io.netty.channel
+     * .ChannelHandlerContext, java.lang.Throwable)
+     */
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause)
+	    throws Exception {
+	cause.printStackTrace();
+	ctx.close();
+    }
+}
+
+```
 
 ### 7.私有协议栈开发
 
