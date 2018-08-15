@@ -4,30 +4,22 @@
 
 ### 1. IO阻塞模型
 
-​             
-
-​                 
-
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/547cb07c02bc4bbf8969986eaf361d8c/io%20%E9%98%BB%E5%A1%9E%E6%A8%A1%E5%9E%8B.png)
+​            ![](D:\学习\learn\learn\notes\image\阻塞模型.png)
 
 ### 2. 非阻塞IO模型
 
-​                
-
-​              
-
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/07a7d3e9151d4717a57f94009d2268cb/%E9%9D%9E%E9%98%BB%E5%A1%9E.png)
+![](D:\学习\learn\learn\notes\image\非阻塞模型.png)
 
 ### 3. IO复用模型
 
 > 1. select/poll，阻塞在select操作上，select/poll可以侦测多个fd(文件描述)是否处于就绪状态，它是顺序扫描fd是否就绪，而且支持fd的数量有限（默认1024，由FD_SETSIZE设置，可以选择修改这个宏然后重新编译内核，不过这会带来网络效率的下降），因此它的使用受到了制约。
 > 2. epoll，它基于事件驱动的方式代替顺序扫描，因此性能更高，当 fd就绪时，立即回调函数rollback。
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/00ae0c47b0714d5e8dfb335a304c7b0a/untitle.png)
+![](D:\学习\learn\learn\notes\image\io复用模型.png)
 
 ### 4. 信号驱动IO模型
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/da5c937414f4478f898acb3d93dc8ddd/untitle.png)
+![](D:\学习\learn\learn\notes\image\信号驱动模型.png)
 
 ### 5. 异步IO
 
@@ -38,7 +30,7 @@
 > 1. 信号驱动：由内核通知我们何时开始一个IO操作。
 > 2. 异步IO：由内核通知我们IO操作何时已完成。
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/773ad4c7564d4713bb2a443c42d8712f/untitle.png)
+![](D:\学习\learn\learn\notes\image\异步模型.png)
 
 ## 二。IO多路复用技术
 
@@ -78,13 +70,13 @@
 
 ​                              
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/1de2920b006e46dcb34d4dbe506ef3a2/untitle.png)
+![](D:\学习\learn\learn\notes\image\buffer继承关系图.png)
 
 ### 2. 通道Channel
 
 > 可以通过它读取和写入数据，它与流不同之处在于通道是双向的，流只能在一个方向移动（一个流必须是InputStream或OutputStream的子类），而且通道可以用于读、写、或同时读写。因为它是全双工的，所以比流更好的映射底层操作系统API。特别是在UNIX网络编程模型中，底层操作系统的通道都是全双工的，同时支持读写操作。
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/398c62a36b164540803c9b85dd6dc261/untitle.png)
+![](D:\学习\learn\learn\notes\image\Channel继承关系图.png)
 
 ### 3. 多路复用器Selector
 
@@ -92,15 +84,15 @@
 
 ## 四。NIO服务端序列图
 
-​       
+​       ![](D:\学习\learn\learn\notes\image\NIO服务端通信序列图.png)
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/240b0a3c943c49cca933ab6cb1fe4b13/untitle.png)
+
 
 ## 五。NIO客户端序列图
 
 ​      
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/6b516e878b7e4fe5bec7c6532118fa1e/untitle.png)
+![](D:\学习\learn\learn\notes\image\NIO客户端序列图.png)
 
 ## 六。API
 
@@ -112,7 +104,7 @@
 
 ## 八。IO模型 对比
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/38458562d98e4f24ab8cfb7bbff09acc/untitle.png)
+![](D:\学习\learn\learn\notes\image\io模型对比.png)
 
 ## 九。netty
 
@@ -124,7 +116,7 @@
 2. 进行MSS大小的TCP分段。
 3. 以太网帧的playload大于MTU进行ip分片。
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/355abb4f7bb04eb1968830910f155760/untitle.png)
+![](D:\学习\learn\learn\notes\image\tcp粘包拆包问题原因.png)
 
 > 解决策略：
 
@@ -812,13 +804,13 @@ public class HttpFileServerHandler extends
 
 * 客户端发送服务端的http请求：
 
-![1534247726090](C:\Users\ADMINI~1\AppData\Local\Temp\1534247726090.png)
+![](D:\学习\learn\learn\notes\image\websocket客户端请求.png)
 
 “1”表名这是一个申请协议升级的http请求，服务端生成应答信息返给客户端，客户端与服务端的websocket连接就建立了。并且这个连接会持续到某一方关闭。
 
 * 服务端返回：
 
-  ![1534247771196](C:\Users\ADMINI~1\AppData\Local\Temp\1534247771196.png)
+  ![](D:\学习\learn\learn\notes\image\websocket服务端应答.png)
 
 请求中的“2”是随机的，服务端会用这些数据构造出一个SHA-1的信息摘要：
 
@@ -830,9 +822,9 @@ public class HttpFileServerHandler extends
 
 * websocket生命周期
 
-  ![1534248186443](C:\Users\ADMINI~1\AppData\Local\Temp\1534248186443.png)
+  ![](D:\学习\learn\learn\notes\image\websocket生命周期.png)
 
-* websocket连接关闭
+  websocket连接关闭
 
   正常首先由服务端关闭，异常情况，客户端一个合理的周期后没有收到服务器的TCP Close，客户端可以发起TCP Close。
 
@@ -877,6 +869,6 @@ public class HttpFileServerHandler extends
 ## 十二.netty参数配置
 
 
-![1534244599798](C:\Users\ADMINI~1\AppData\Local\Temp\1534244599798.png)
+![](D:\学习\learn\learn\notes\image\netty参数一.png)
 
-![1534244613918](C:\Users\ADMINI~1\AppData\Local\Temp\1534244613918.png)
+![](D:\学习\learn\learn\notes\image\netty参数二.png)
