@@ -1399,6 +1399,62 @@ public class FileServerHandler extends SimpleChannelInboundHandler<String> {
 
 ### 1.Bytebuf和相关辅助类
 
+> jdk的ByteBuffer主要缺点：
+>
+> 1. 长度固定，一旦分配完成，容量不能动态扩展和收缩，当pojo对象大于bytebuf容量时，会发生索引越界异常。
+> 2. 只有一个标识位置的指针position，读写需要手工flip()和rewind()等，必需小心处理，否则容易处理出错。
+> 3. api功能有限，一些高级和实用特性不支持。
+
+#### bytebuf设计：
+
+1. 增加readIndex和writeIndex，读写不用调整指针。
+
+2. discardReadBytes：重用已读的缓冲区，可以节省容量，防止容量不足导致的扩张。但是，他会有字节数组的内存复制，频繁调用将会导致性能下降。因此，调用前需要权衡下利弊。
+
+3. nioBuffer：转换标准byteBuffer，共用缓冲区内容引用，返回的byteBuffer无法感知byteBuf的动态扩展。
+
+4. 支持顺序读取(read/write)和随机读写(set/get)。两者都会对索引和长度校验，不同的是set不支持动态扩展缓冲区。set/get读写缓冲区不会修改读写索引。
+
+5. byteBuf主要继承关系  ![](https://github.com/XwDai/learn/raw/master/notes/image/byteBuf%E4%B8%BB%E8%A6%81%E7%B1%BB%E7%BB%A7%E6%89%BF%E5%85%B3%E7%B3%BB.jpg)
+
+   * 从内存分配的角度：
+
+   1. 堆内存（HeapByteBuf）字节缓冲区：内存分配回收速度快，可以被jvm自动回收，缺点是如果进行socket io读写，需要额外做一次内存复制，将堆内存对应的缓冲区复制到内核channel中，性能有所下降。
+   2. 直接内存字节缓冲区（DirectByteBuf）：非堆内存，在堆外内存分配，分配和回收速度会慢一些，但是将它写入或者从socket channel中读取时，会少一次内存复制，速度比堆内存块。
+
+   > 最佳实践：
+   >
+   > 在io通信线程的读写缓冲区使用DirectByteBuf，后端业务消息的编解码模块使用HeapByteBuf，这样组合可以达到性能最优。
+
+   * 从内存回收的角度：
+
+   1. 普通的ByteBuf。
+   2. 基于对象池的ByteBuf。维护了一个内存池，可以重用ByteBuf对象，提升内存使用效率，降低由于高负载导致的频繁GC。测试表明，在使用内存池后的Netty在高负载、大并发的冲击下内存和GC更平稳。
+
+6. AbstractByteBuf
+
+   1. 定义了一些公共属性，读写操作的公共行为方法。
+   2. 全局 leakDetector：用于检测对象是否泄漏。
+   3. 没有定义缓冲区实现。因为无法确定子类是基于直接内存还是对内存。
+
+7. AbstractReferenceCountedByteBuf
+
+   1. 引用计数器refCnt，最小值为1，当被释放和被申请次数相等时，就调用回收方法回收当前的ByteBuf。
+
+8. UnpooledHeapByteBuf ：每次IO读写都会创建一个新的，频繁大内存分配和回收队性能会造成一定影响，但是相比堆外内存的申请和释放，成本还是低些。相比PooledHeapByteBuf，实现简单，不容易出现内存管理方面的问题，在性能满足的情况下，推荐使用UnpooledHeapByteBuf。
+
+   1. 聚合了一个ByteBufAllocator分配内存
+   2. 定义了一个byte数组作为缓冲区。直接使用ByteBuffer也是可以的，这里使用数组是为了提升性能和便捷的位操作。
+   3. 定义了一个ByteBuffer变量用于实现ByteBuf到ByteBuffer的转换。
+
+9. PooledByteBuf：
+
+   1. PoolArena。netty的内存池实现，由多个Chunk组成的大块内存区域。
+   2. PoolChunk。组织和管理多个Page的内存分配和释放。Chunk中的page被构建成一个二叉树。
+   3. PoolSubpage。
+
+10. 扩容算法：需要的新容量小于阈值4M时，以64为计数倍增（64->128->256字节，这样的扩张方式是可以被接受的），等于时直接使用阈值作为新缓冲区的大小，大于阈值时以步增的方式（防止内存膨胀和浪费），如果大于缓冲区的最大容量（ByteBuf可以设置最大容量）则使用最大容量作为扩容后的缓冲区容量。最后使用System.arrycopy进行内存复制到新缓冲区。
+
 ### 2.Channel和Unsafe
 
 ### 3.ChannelPipeline和ChannelHandler
