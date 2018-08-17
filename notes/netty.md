@@ -1453,9 +1453,32 @@ public class FileServerHandler extends SimpleChannelInboundHandler<String> {
    2. PoolChunk。组织和管理多个Page的内存分配和释放。Chunk中的page被构建成一个二叉树。
    3. PoolSubpage。
 
-10. 扩容算法：需要的新容量小于阈值4M时，以64为计数倍增（64->128->256字节，这样的扩张方式是可以被接受的），等于时直接使用阈值作为新缓冲区的大小，大于阈值时以步增的方式（防止内存膨胀和浪费），如果大于缓冲区的最大容量（ByteBuf可以设置最大容量）则使用最大容量作为扩容后的缓冲区容量。最后使用System.arrycopy进行内存复制到新缓冲区。
+10. PooledDirectByteBuf：
+
+11. ByteBufHolder：ByteBuf容器，对ByteBuf的包装和抽象。不同协议消息体可以包含不同的协议字段和功能，这就需要对ByteBuf进行抽象和包装，不同子类可以有不同实现。
+
+12. ByteBufAllocator：字节缓冲区分配器。
+
+    1. PooledByteBufAllocator。
+    2. UnpooledByteBufAllocator。
+
+13. CompositeByteBuf：允许将多个ByteBuf实例组装到一起，形成一个统一的视图。
+
+14. ByteBufUtil：
+
+15. 扩容算法：需要的新容量小于阈值4M时，以64为计数倍增（64->128->256字节，这样的扩张方式是可以被接受的），等于时直接使用阈值作为新缓冲区的大小，大于阈值时以步增的方式（防止内存膨胀和浪费），如果大于缓冲区的最大容量（ByteBuf可以设置最大容量）则使用最大容量作为扩容后的缓冲区容量。最后使用System.arrycopy进行内存复制到新缓冲区。
 
 ### 2.Channel和Unsafe
+
+1. Channel：
+   * read()：读取数据到inbound缓冲区，读取成功触发channelRead事件，读取操作api调用完成触发channelReadComplete事件。
+   * write(Object msg)：将当前的msg通过ChannelPipeline写入Channel中，write只是将消息存入到消息发送环形数组中，并没有真正发送，调用flush才会被写入Channel。
+   * ChannelPromise参数：可以获取操作结果。
+   * connect(SocketAddress remoteAddress，SocketAddress localAddress)：先绑定本地地址，在连接服务端。服务端看到的客户端地址和端口就是绑定的。
+   * metaData()：可获取TCP参数配置。
+   * parent()：服务端的父Channel为空，客户端的父Channel为创建它的ServerSocketChannel。
+   * id()：Channel 唯一标识。
+2. Unsafe:
 
 ### 3.ChannelPipeline和ChannelHandler
 
@@ -1470,6 +1493,10 @@ public class FileServerHandler extends SimpleChannelInboundHandler<String> {
 ### 1.java多线程编程在netty中的应用
 
 ### 2.netty架构剖析
+
+* 采用三层架构
+
+  ![](https://github.com/XwDai/learn/raw/master/notes/image/netty%E6%9E%B6%E6%9E%84%E5%9B%BE.jpg)
 
 ### 3.netty行业应用
 
