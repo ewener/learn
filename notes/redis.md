@@ -249,13 +249,88 @@ setnx key value
 > 集合间操作
 
 1. 多个集合交集：sinter key [key ...]
+
 2. 多个集合并集：suion key [key ...]
+
 3. 多个集合差集：sdiff key [key ...]
+
 4. 将交集、并集、差集结果保存：sinterstore/suionstore/sdiffstore des key [key ...]，集合的运算在元素较多的时候比较耗时，这个命令将结果保存在des中。
+
+   ![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E9%9B%86%E5%90%88%E5%B8%B8%E7%94%A8%E5%91%BD%E4%BB%A4%E6%97%B6%E9%97%B4%E5%A4%8D%E6%9D%82%E5%BA%A6.jpg)
 
 ##### 二.内部编码
 
+> intset：整数集合
+>
+> > 当集合中元素都是整数且元素个数小于set-max-intset-entries配置时(默认512)使用，减少内存使用。
+>
+> hashtable：哈希表
+>
+> > 当intset无法满足条件时使用。
+
 ##### 三.使用场景
 
+1. 给用户添加标签，给标签添加用户，删除用户下的标签，删除标签下的用户，计算用户共同感兴趣的标签。
+
+​    注意：用户和标签应该在一个事务里执行。
+
+> 开发提示：sadd = tagging(标签) ，spop/srandmember = random item(生成随机数，比如抽奖)，sadd+sinter = social graph(社交需求)
+
+#### 六.有序集合
+
+> 可以排序的集合，与列表使用索引下标为排序依据不同的是，它给每个元素设置一个分数score作为排序依据。**有序集合元素不可以重复，但是score可以重复**。
+
+##### 一.命令
+
+> 集合内
+
+1. 添加成员：zadd key score member [score member ...] ，返回添加成功个数。
+
+   注意：
+
+   ①redis3.2为zadd命令添加了nx、xx、ch、incr四个选项 
+
+   * nx：不存在才能设置成功，用于添加。
+   * xx：存在才能设置成功，用于更新。
+   * ch：返回此次操作后，有序集合和分数发生变化的个数。
+   * incr：对score做增加，相当于zincrby。
+
+   ②有序集合相比集合提供了排序，但是也产生了代价，zadd的时间复杂度为o(log(n))，sadd为o(1)。
+
+2. 计算成员个数：zcard key，时间复杂度为o(1)。
+
+3. 计算成员分数：zscore key member
+
+4. 计算成员排名：zrank key member->返回从低到高排名，zrevrank key member->反之
+
+5. 删除成员：zrem key member [member ...]
+
+6. 增加成员分数：zincrby key increment member，increment 为增加的分数。
+
+7. 返回指定排名范围成员：zrange key start end [withscores] ->从低到高返回，zrevrange key start end [withscores] -> 反之；加上withscores，会返回成员的分数。
+
+8. 返回指定分数范围成员：zrangebyscore key min max [withscores]\[limit offset count]->按照分数从低到高返回，zrevrangebyscore key **max  min** [withscores]\[limit offset count] 反之；加上withscores，会返回成员的分数。**min和max支持开区间(小括号)和闭区间(中括号)，-inf和+inf代表无限小和无限大**。
+
+9. 返回指定分数范围成员个数：zcount key min max
+
+10. 删除指定排名内的升序元素：zremrangebyrank key start end
+
+11. 删除指定分数范围成员：zremrangebyscore key mix max，返回删除个数。
+
+> 集合间操作
+
+1. 交集：zinterstore des numkeys key [key ...]\[weights weight [weight ...]]\[aggregate sum|min|max]
+
+* des：保存结果键
+* numkeys：需要做交集计算键的个数。
+* key [key ...]：需要做交集计算的键。
+* weights weight [weight ...]：每个键的权重，在做交集运算时，每个键的每个成员会将自己分数乘以这个权重，权重默认值是1。
+* aggregate sum|min|max：计算交集后，分值可以按sum、min、max做汇总，默认是sum。
+
+2. 并集：zunionstore des numkeys key [key ...]\[weights weight [weight ...]]\[aggregate sum|min|max]，与交集类似。
 
 
+
+##### 二.内部编码
+
+#####三.使用场景
