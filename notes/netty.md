@@ -1508,3 +1508,4 @@ public class FileServerHandler extends SimpleChannelInboundHandler<String> {
 ![](https://github.com/XwDai/learn/raw/master/notes/image/netty参数一.png)
 
 ![](https://github.com/XwDai/learn/raw/master/notes/image/netty参数二.png)
+
