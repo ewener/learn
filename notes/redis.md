@@ -120,3 +120,38 @@ setnx key value
 3. 设置并返回原值：getset key value
 4. 设置指定位置的字符：setrange key offeset value，偏移量从0开始
 5. 获取部分字符串：getrange key start end，偏移量从0开始
+
+![](https://github.com/XwDai/learn/raw/master/notes/image/%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%B1%BB%E5%9E%8B%E5%91%BD%E4%BB%A4%E6%97%B6%E9%97%B4%E5%A4%8D%E6%9D%82%E5%BA%A6.jpg)
+
+##### 二.内部编码
+
+1. int：8个字节的长整型
+2. embstr：小于等于39个字节的字符串
+3. raw：大于39个字节的字符串
+
+##### 三.使用场景
+
+> 1.缓存功能
+>
+> > 开发提示：合理设置键，有利于防止冲突和可维护性，推荐方式“**业务名：对象名：id：[属性]**”，在能描述键含义的前提下适当减少键长度，减少内存浪费。
+>
+> 2.计数：incr(key)
+>
+> 3.共享session
+>
+> 4.限速：set(key,1,"EX 60","NX")
+>
+> ```java
+> String phoneNum = "1305454516";
+> String key = "shortMsg:limit:"+phoneNum
+> Boolean isExists = redis,set(key,1,"EX 60","NX");
+> if(isExists!=null || redis.incr(key)<=5){
+>     //通过
+> }else{
+>     //限速
+> }
+> ```
+
+#### 三.哈希
+
+> 哈希类型是指键值本身又是一个键值对结构。
