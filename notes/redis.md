@@ -329,8 +329,281 @@ setnx key value
 
 2. 并集：zunionstore des numkeys key [key ...]\[weights weight [weight ...]]\[aggregate sum|min|max]，与交集类似。
 
-
+![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E6%9C%89%E5%BA%8F%E9%9B%86%E5%90%88%E5%91%BD%E4%BB%A4%E6%97%B6%E9%97%B4%E5%A4%8D%E6%9D%82%E5%BA%A6.jpg)
 
 ##### 二.内部编码
 
+> ziplist：压缩列表
+>
+> > 当有序集合元素个数小于zset-max-ziplist-entries配置时（默认128个），同时每个元素的值都小于zset-max-ziplist-value配置（默认64字节）时使用。
+>
+> skiplist：跳跃表
+>
+> > 当ziplist条件不满足是使用。
+
 #####三.使用场景
+
+1. 添加用户赞数
+
+#### 七.键管理
+
+##### 一.单个键管理
+
+1. 键重命名：rename key newkey
+
+​      注意：
+
+* 如果rename前，此newKey已经存在，那么它的值将被覆盖。为了防止强行rename，redis提供了renamenx，确保不存在时才被覆盖。
+* **重命名前会先del旧的键，如果键值比较大，会存在阻塞redis的可能性**。
+* 如果重命名的key和newkey相同，redis3.2之前会报错。
+
+2. 随机返回一个当前库中的键：randomkey
+3. 键过期：
+
+* expire key seconds
+
+* expireat key timestamp：键在秒级时间戳timestamp后过期
+
+* pexpire key milliseconds：键在毫秒后过期。
+
+* pexpireat key milliseconds-timestamp：键在毫秒级时间戳后过期。
+
+  注意：
+
+  * expire key键不存在时，返回0，这与ttl/pttl是有区别的。
+  * 如果过期时间为负值，键会被立即删除。跟del一样。
+  * persist key命令将键的过期时间清除。ttl查看过期时间会返回-1。
+  * **对于字符串类型键，执行set命令会去掉过期时间。**
+  * redis不支持二级数据结构（哈希、列表等）内部元素的过期功能，例如不能对列表类型的一个元素设置过期时间。
+  * setex=set+expire，原子性，减少了一次网络通信时间。
+
+* ttl/pttl key：查询键剩余过期时间，pttl精度更高，可达到毫秒级。
+
+  三种返回值：
+
+  - 大于等于0：键剩余过期时间。
+  - -1：没有设置过期时间。
+  - -2：键不存在。
+
+4. 键迁移
+
+* move key db：把key迁移到另外个db。
+
+* dump+restore：可实现不同redis实例之间的数据迁移。分为以下两步：
+
+  * dump key：在源redis上，将键值序列化，格式采用的是RDB格式。命令执行之后返回一个长字符串，把它作为第二步的value。
+  * restore key ttl value：在目标redis上，将上面序列化的值进行复原，ttl代表过期时间，为0代表没有过期时间。
+
+* migrate host port key|“ ” des-db timeout [copy]\[replace]\[keys key [key ...]]：用于redis实例间数据迁移，实际上就是将dump、restore、del三个命令组合。具有原子性，只需要在源redis上执行就可以了。migrate 在水平扩容中起到作用。
+
+  参数说明：
+
+  * key|“ ”：redis3.0.6后支持迁移多个键，如果需要迁移多个键，这里为空字符串。
+  * copy：添加此项，迁移之后不删除源键。
+  * replace：添加此项，不管目标redis是否存在此键，都会覆盖值。
+  * \[keys key [key ...]]：迁移多键时填写，与上面的key为空串的参数对应。
+
+5. 遍历键
+
+* 全量遍历键：keys pattern，pattern使用的是glob风格的通配符：
+
+  * *代表匹配任意字符。
+  * ？代表匹配一个字符。
+  * []代表匹配部分字符，如，[1,3]代表匹配1,3，[1-10]匹配1-10任意数字。
+  * \x用了做转义，例如匹配星号、问号需要进行转义。
+
+* 渐进式遍历：scan，有效解决了keys的问题。时间复杂度o(1)。但是需要执行多次scan才能达到keys的效果。
+
+  * 用法：scan cursor [match pattern]\[count number]
+
+     参数说明：
+
+  ​    cursor ：游标，从0开始每次scan返回当前游标值。知道游标为0，标识遍历结束。
+
+     [match pattern]：匹配键。
+
+     \[count number]：每次遍历的键个数。默认10。
+
+  * hgetall、smembers、zrange对应hscan、sscan、zscan。
+
+  注意：**如果scan过程中键有变化，那么可能出现新增的键可能没有遍历到，遍历出重复的键等情况。**
+
+6. 数据库管理
+
+* 切换数据库（redis默认16个数据库，默认使用的0）
+
+  * select dbindex：如select 0。
+
+  注意：redis3.0后已逐渐弱化了这个功能，例如redis cluster只允许使用0。
+
+  为什么要废弃这个功能？：
+
+  1. redis单线程，即使是多个db，使用的仍然是一个cpu。彼此还是有影响。
+  2. 调试运维不同业务困难。例如慢查询依然会影响其他数据库，影响别的业务方定位问题。
+  3. 部分redisclient不支持这种方式，即使支持，还得来回切换，容易混乱。
+
+* flushdb/flushall：清除数据库数据
+
+  * 区别：flushdb只清除当前数据库，flushall清除所有。
+
+  注意：
+
+  1. 误操作不可设想。rename-command配置规避这个问题。
+  2. 当前库键值比较多，存在阻塞redis可能性。
+
+
+
+### 五.小功能大用处
+
+#### 一.慢查询分析
+
+#### 二.Redis Shell
+
+#### 三.Pipeline
+
+#### 四.事务与Lua
+
+#### 五.Bitmaps
+
+#### 六.HyperLogLog
+
+#### 七.发布订阅
+
+#### 八.GEO
+
+
+
+### 六.客户端
+
+#### 一.客户端通信协议
+
+#### 二.java客户端Jedis
+
+####三.java客户端Lettuce 
+
+#### 四.客户端管理
+
+####五.客户端常见异常
+
+#### 六.客户端案例分析
+
+
+
+### 七.持久化
+
+#### 一.RDB
+
+#### 二.AOF
+
+#### 三.问题定位与优化
+
+#### 四.多实例部署
+
+
+
+### 八.复制
+
+#### 一.配置
+
+#### 二.拓扑
+
+#### 三.原理
+
+#### 四.开发与运维中的问题
+
+
+
+### 九.redis的噩梦：阻塞
+
+#### 一.发现阻塞
+
+#### 二.内在原因
+
+#### 三.外在原因
+
+
+
+### 十.理解内存
+
+#### 一.内存消耗
+
+#### 二.内存管理
+
+#### 三.内存优化
+
+
+
+### 十一.哨兵
+
+#### 一.基本概念
+
+#### 二.安装部署
+
+#### 三.API
+
+#### 四.客户端连接
+
+#### 五.实现原理
+
+#### 六.开发与运维中的问题
+
+
+
+### 十二.集群
+
+#### 一.数据分布
+
+#### 二.搭建集群
+
+#### 三.节点通信
+
+#### 四.集群伸缩
+
+#### 五.请求路由
+
+#### 六.故障转移
+
+#### 七.集群运维
+
+
+
+### 十三.缓存设计
+
+#### 一.缓存收益与成本
+
+#### 二.缓存更新策略
+
+#### 三.缓存粒度控制
+
+#### 四.穿透优化
+
+#### 五.无底洞优化
+
+#### 六.雪崩优化
+
+#### 七.热key重建优化
+
+
+
+### 十三.开发运维陷阱
+
+#### 一.linux配置优化
+
+#### 二.flushall/flushdb误操作
+
+#### 三.安全的redis
+
+#### 四.处理bigkey
+
+#### 五.寻找热点key
+
+
+
+
+
+
+
+​       
+
+
+
