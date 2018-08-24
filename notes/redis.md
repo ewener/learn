@@ -172,3 +172,35 @@ setnx key value
 10. hincrby key field，  hincrbyfloat key field ：与incrby和incrbyfloat一样，但是它们作用域的field。
 11. 计算value的字符串长度：hstrlen key value
 
+![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E5%93%88%E5%B8%8C%E7%B1%BB%E5%9E%8B%E6%97%B6%E9%97%B4%E5%A4%8D%E6%9D%82%E5%BA%A61.jpg)
+
+![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E5%93%88%E5%B8%8C%E7%B1%BB%E5%9E%8B%E6%97%B6%E9%97%B4%E5%A4%8D%E6%9D%82%E5%BA%A62.jpg)
+
+##### 二.内部编码
+
+> ziplist(压缩列表)：
+>
+> > 当hash类型元素个数小于hash-max-ziplist-entries配置（默认512个）、同时所有值都小于hash-max-ziplist-value配置（默认64字节）时使用。
+> >
+> > ziplist使用更紧凑的结构实现多个元素的连续存储，所以在节省内存方面比hashtable更加优秀。
+>
+> hashtable(哈希表)：
+>
+> > 当hash类型无法满足ziplist时使用，因为此时ziplist读写效率会下降，而hashtable读写时间复杂度为o(1)
+
+##### 三.使用场景
+
+#### 四.列表
+
+> 列表是用来存储多个有序的字符串，一个列表最多可存2的32次方减1个元素。
+
+##### 一.命令
+
+| 操作类型 | 操作                                                         |
+| -------- | ------------------------------------------------------------ |
+| 添加     | 1.rpush key value [value ...]：从右插入。                                                                                                                                2.lpush key value [value ...]：从左插入。                                                                                                                                3.linsert key before\|after pivot value：从列表中找到等于pivot的元素，在前或者后插入value |
+| 查找     | 1.lrange key start end：获取指定范围内的元素列表。偏移量为负数时反向。                                 2.lindex key index：获取列表指定下标元素。                                                                                      3.llen key：获取列表长度。 |
+| 删除     | 1.lpop key：列表左侧弹出元素。返回弹出元素。                                                                                2.rpop key：列表右侧弹出元素。返回弹出元素。                                                                                3.lrem key count value：删除等于value的元素，count>0,从左到右，删除最多count个元素；count<0，从右到左，删除最多count个元素；count=0，删除所有。                                                4.ltrim key start end：按照索引范围修剪列表。在索引范围的保留。 |
+| 修改     | 1.lset key index newValue：修改指定索引下标的元素。          |
+| 阻塞操作 | 1.brpop\blpop key [key ...] timeout(s)：如果列表没有元素，阻塞到timeout返回，当timeout=0，一直阻塞。                                                                                                                                注意：多个key时，会从左至右遍历键，有一个能弹出就返回。  如果多个客户端对通一个key阻塞操作，先执行命令的客户端可以获取到弹出值。 |
+
