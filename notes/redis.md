@@ -155,3 +155,20 @@ setnx key value
 #### 三.哈希
 
 > 哈希类型是指键值本身又是一个键值对结构。
+
+![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E5%AD%97%E7%AC%A6%E4%B8%B2%E4%B8%8Ehash%E7%B1%BB%E5%9E%8B%E5%AF%B9%E6%AF%94.jpg)
+
+##### 一.命令
+
+1. 设置值：hset key field value
+2. 获取值：hget key field，如果key不存在，返回nil。
+3. 删除field：hdel key field [field ...]，删除一个或多个field，返回成功删除field个数。
+4. 计算field个数：hlen key
+5. 批量设置或获取：hmset key field value [field value ...]，hmget key field [field ...]
+6. 判断field是否存在：hexists key field，包含返回1，不包含返回0。
+7. 获取所有field：hkeys key
+8. 获取所有value：hvals key
+9. 获取所有的field-value：hgetall key，**如果元素个数比较多，会存在阻塞redis的可能，如果一定要获取全部的field-value，可以使用hscan，该命令会渐进式遍历hash类型**。
+10. hincrby key field，  hincrbyfloat key field ：与incrby和incrbyfloat一样，但是它们作用域的field。
+11. 计算value的字符串长度：hstrlen key value
+
