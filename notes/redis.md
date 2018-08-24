@@ -204,3 +204,58 @@ setnx key value
 | 修改     | 1.lset key index newValue：修改指定索引下标的元素。          |
 | 阻塞操作 | 1.brpop\blpop key [key ...] timeout(s)：如果列表没有元素，阻塞到timeout返回，当timeout=0，一直阻塞。                                                                                                                                注意：多个key时，会从左至右遍历键，有一个能弹出就返回。  如果多个客户端对通一个key阻塞操作，先执行命令的客户端可以获取到弹出值。 |
 
+![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E5%88%97%E8%A1%A8%E6%97%B6%E9%97%B4%E5%A4%8D%E6%9D%82%E5%BA%A6.jpg)
+
+##### 二.内部编码
+
+> ziplist:
+>
+> > 当列表元素个数小于list-max-ziplist-entries配置（默认512个）、同时所有值都小于list-max-ziplist-value配置（默认64字节）时使用。
+
+> linkedlist:
+>
+> > 当无法满足ziplist条件时使用。
+>
+> 开发提示：redis3.2中提供了quicklist内部编码，简单说它是一个以ziplist为节点的linkedlist，结合了两者的优势。
+
+##### 三.使用场景
+
+1. 消息队列：lpush+brpop
+2. 栈：lpush+lpop
+3. 有限集合：lpush+ltrim
+4. 文章列表
+
+#### 五.集合
+
+> 用以保存多个字符串元素，不允许重复，元素无序，不能索引下标获取元素。
+
+##### 一.命令
+
+> 集合内操作
+
+1. 添加元素：sadd key element [element  ...]
+2. 删除元素：srem key element [element  ...]，返回删除元素个数。
+3. 计算元素个数：scard key，**时间复杂度o(1)，不会遍历所有元素，直接使用redis内部变量**。
+4. 判断元素是否在集合中：sismember key element ，是，返回1，否，返回0。
+5. 随机从集合返回指定个数元素：srandmember key [count]，count默认1。
+6. 从结合**随机**弹出元素：spop key，redis3.2开始，支持[count]参数，
+
+​    注意：srandmember 和spop 都是从集合中选出元素，不同的是**spop 会删除，srandmember 不会**。
+
+7. 获取所有元素：smembers key，返回结果无序。
+
+​    注意：smembers、lrange、hgetall都属于比较重的命令，元素过多存在阻塞redis可能性，这时候需要使用sscan。
+
+> 集合间操作
+
+1. 多个集合交集：sinter key [key ...]
+2. 多个集合并集：suion key [key ...]
+3. 多个集合差集：sdiff key [key ...]
+4. 将交集、并集、差集结果保存：sinterstore/suionstore/sdiffstore des key [key ...]，集合的运算在元素较多的时候比较耗时，这个命令将结果保存在des中。
+
+##### 二.内部编码
+
+##### 三.使用场景
+
+
+
