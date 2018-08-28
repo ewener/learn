@@ -1,3 +1,5 @@
+
+
 ### 一.使用场景
 
 > 可以做什么
@@ -457,25 +459,216 @@ setnx key value
 
 #### 一.慢查询分析
 
+1. 配置参数：
+
+   * slowlog-log-slower-than：阈值，单位微妙，默认10000。=0会记录所有命令，<0不会记录任何命令。
+   * slowlog-max-len：内存存储日志的列表长度。插入记录大于长度，最早的那条将移除。这个列表的键不会暴露。
+
+   修改配置：
+
+   ①修改配置文件。
+
+   ②
+
+   ```redis
+   config set slowlog-log-slower-than 20000
+   config set slowlog-max-len 1000
+   config rewrite //持久化本地配置文件
+   ```
+
+2. 获取慢查询日志：slowlog get [n]   //n可指定条数。
+
+3. 日志组成：日志标识id、发生时间戳、命令耗时、执行命令、参数。
+
+4. 获取慢查询日志列表当前长度：slowlog len。
+
+5. 慢查询日志重置：slowlog reset。
+
+6. 最佳实践：
+
+   * slowlog-max-len配置建议：线上建议调大，记录慢查询的redis会对长命令做截断操作，并不会占用大量内存，增大慢查询列表可以减缓慢查询被剔除的可能，例如线上可设置1000以上。
+   * slowlog-log-slower-than：默认10毫秒，需要根据并发量调整，由于redis单线程，对应高流量场景，如果命令执行1毫秒以上，redis 最多支撑ops不到1000，因此高ops场景建议设置1毫秒。
+   * 慢查询只记录命令执行时间，并不包括排队和网络传输时间。因此客户端执行时间>命令实际执行时间。慢查询会导致其他命令级联阻塞，因此当客户端请求超时时，检查是否有慢查询。
+   * 慢查询列表的先进先出特点，慢查询多的时候，会丢失部分慢查询命令，为了防止这种情况，可以定期执行slow get将慢查询日志持久化到其他存储中。
+
 #### 二.Redis Shell
+
+1. redis-cli
+   * -r：repeat，代表命令执行多次。例：redis-cli -r 3 ping  ->执行3次ping命令。
+   * -i：interval(s)：每隔几秒执行一次，-i必须和-r同时使用。例：redis-cli -r 3 -i 1 ping
+   * -x：从标准输入读取数据作为redisl-cli的最后一个参数，例：$echo “world”|redis-cli -x set hello
+   * -c：cluster，连接redis cluster使用。可以防止moved和ask异常。
+   * --scan和--pattern：用于扫描指定模式的键，相当于scan。
+   * --slave：把当前客户端模拟成当前redis的从节点。可以用来获取当前redis节点的更新操作。当节点有数据更新时，从节点能获取到更新数据。
+   * --rdb：请求redis实例生成并发送rdb文件，保存到本地。可使用它做持久化文件定期备份。
+   * --pipe：将命令封装成redis通信协议定义的数据格式，批量发送给redis执行。
+   * --bigkeys：使用scan对redis的键进行采样，从中找出内存占用比较大的键值。
+   * --eval：执行指定lua脚本。
+   * --latency：检测网络延迟。只要一条数据。
+     * --latency-history：默认每隔15s输出一次，可以通过-i控制间隔时间。
+     * --latency-dist：使用统计图表从控制台输出延迟统计信息。
+   * --stat：实时获取redis重要统计信息，info虽然能看到更全，但不实时。
+   * --raw和--no-raw：--no-raw命令返回结果必须是原始格式，--raw相反。有时需要--raw查看格式话的结果，比如中文，而不是十六进制。
+2. redis-server
+   * 除了之前说的启动，还有个参数，--test-memory：检测当前操作系统能否稳定的分配指定容量的内存给redis。通过检测有效避免因为内存原因造成redis崩溃。
+3. redis-benchmark
+   * -c：clients，客户端并发数量，默认50。
+   * -n：num，代表客户端请求总量，默认100000。
+   * -q：仅仅显示redis-benchmark的requests per second信息。
+   * -r：random
+   * -p：每个请求pipeline的数据量，默认为1。
+   * -k：客户端是否使用keeplive，1为使用，0不使用，默认1。
+   * -t：对指定命令基准测试。例：redis-benchmark -t get,set -q。
+   * --csv：将结果按csv格式输出。
 
 #### 三.Pipeline
 
+1. 概念：将一组redis命令进行组装，通过一次rtt传输给redis，再将这组redis命令执行结果按顺序返回给客户端。
+2. 批量命令和pipeline对比：
+   * 批量命令是原子的，pipeline非原子。
+   * 批量命令是一个命令对应对个key，pipeline支持多个命令。
+   * 批量命令是服务端支持实现，pipeline服务端和客户端共同实现。
+3. 最佳实践：
+   * 组装命令的个数不能没有节制，否则一次组装数据量过大，一方面增大客户端等待时间，另一方面造成网络堵塞，可以拆成多个小的pipeline执行。
+   * pipeline只能操作一个redis实例。
+
 #### 四.事务与Lua
+
+1. 事务：multi->执行命令->exec，停止事务：discard代替exec。
+
+   注意：
+
+   * 命令错误，造成事务回滚。
+   * 运行时错误，语法正确，但命令用错了，事务提交报错，成功的一部分不支持回滚。
+   * 为了确保事务执行时，key'没有被其他客户端修改，redis提供watch key命令解决，如果期间发生改变，则事务不执行。
+   * redis的事务简单，主要是因为不支持事务中的回滚特性，同时无法实现命令之间的逻辑关系计算。
+
+2. lua
+
+   * eval：直接发送脚本
+   * evalsha：首先将脚本加载到服务器，得到该脚本的SHA1校验和，evalsha命令使用SHA1作为参数可以直接执行对应lua脚本，避免每次发送lua脚本的开销。
+     * 加载脚本：script load
+     * 执行脚本：eval SHA1值  key个数  key列表  参数列表
+   * lua redis api：
+     * redis.call：执行失败，会返回错误。
+     * redis.pcall：忽略错误继续执行脚本。
+     * redis.log：将lua脚本日志输出到redis日志文件，一定要控制日志级别。redis3.2提供了lua script debugger 功能来调试复杂的lua。参考：http://redis.io/topics/ldb
+   * 案例
+   * redis如何管理lua脚本
+     * script load：script load script，将脚本加载到redis内存中。
+     * script exists：scripts exsits sha1 [sha1...]：判断sha1是否加载到redis内存。
+     * script flush：清除redis内存中的所有脚本。
+     * script kill：用命令杀掉正在执行的lua脚本。如果lua脚本比较耗时，甚至脚本存在问题，那么此脚本执行会阻塞redis。
+       * redis 提供了lua-time-limit参数，默认5秒，但是这个超时时间仅仅是当lua脚本时间超过lua-time-limit后，向其它命令调用发送busy的信号，但不会停止服务端和客户端的脚本执行，客户端执行正常命令的时候会收到busy错误。
+       * 执行script kill，客户端调用会恢复。
+       * 注意：**当前lua脚本正在执行写操作，script kill 将不会生效。这时，要么等待脚本执行结束，要么使用shutdown save 停掉redis服务。**
 
 #### 五.Bitmaps
 
+1. 数据结构模型
+
+   * 本身不是一种数据结构，实际上它就是字符串，但是可以对字符串的位进行操作。
+   * 可以想象成一个以位为单位的数组，数组的每个单元只能存储0和1，数组的下标叫Bitmaps的偏移量。
+
+2. 命令
+
+   * 设置值：setbit key offset value。如果第一次初始化，偏移量很大的话，初始化过程会比较慢，可能会造成redis阻塞。
+
+   * 获取值：getbit key offset
+
+   * 获取Bitmaps指定范围值为1的个数：bitcount key [start]\[end]，start和end代表起始和结束的字节数。
+
+   * Bitmaps间的运算：bitop op destkey key [key ...] ，将op运算结果保存在destkey中。
+
+     op：
+
+     * and：交集
+     * or：并集
+     * not：非
+     * xor：异或
+
+   * 计算Bitmaps中第一个值为targetBit的偏移量：bitpos key targetBit [start]\[end]，start和end代表起始和结束的字节数。
+
+3. Bitmaps分析
+
+   * 网站访问统计
+
+   * Bitmaps适合数据量大的存储，数据量小反而更占内存。
+
 #### 六.HyperLogLog
+
+1. HyperLogLog实际为字符串类型。是一种基数算法。可利用极小空间完成独立总数的统计。
+2. 命令
+   * 添加：pfadd key element [element ...]，向HyperLogLog添加元素，成功返回1。
+   * 计算独立用户数：pfcount key [key...]，计算一个或多个HyperLogLog的独立总数。意思是不相同的值的数量。
+   * 合并：pfmerge destkey sourcekey [sourcekey ...]，求出多个HyperLogLog的并集并赋值给destkey。
+3. 注意：HyperLogLog在数据量大的时候节省内存很明显，但是用如此小空间估算如此巨大的数据，必然不是100%正确，redis官方给出的是0.81%的丢失率。在使用的时候需要确认一下两条：
+   * 只为了计算独立总数，不需要获取单条数据。
+   * 可以容忍一定误差。
 
 #### 七.发布订阅
 
-#### 八.GEO
+1. 发布者向指定频道(channel)发布消息，订阅频道的每个客户端都可以收到该消息。
+2. 命令：
+   * 发布消息：publish channel message
+   * 订阅消息：subscribe channel [channel...]
+   * 取消订阅：unsubscribe [channel [channel...]]
+   * 按照模式订阅和取消订阅,意思是可以支持glob风格的匹配：
+     * psubscribe pattern [pattern ]
+     * punsubscribe pattern [pattern ]
+   * 查询活跃的频道：pubsub channels [pattern]，活跃是指当前频道至少有一个订阅者。
+   * 查看频道订阅数：pubsub numsub [channel...]
+   * 查看模式订阅数：pubsub numpat
+3. 注意：
+   * 客户端执行订阅命令之后进入了订阅状态，只能接收subscribe、psubscribe、unsubscribe、punsubscribe。
+   * 新开启的客户端无法接收到改频道之前的信息。因为redis不会对消息持久化。
 
+#### 八.GEO（地理信息定位）
 
+1. redis3.2版本提供，支持存储地理位置信息实现依赖地理位置信息的功能。
+
+2. 命令
+
+   * 增加地理位置信息：geoadd key longitude latitude member [longitude latitude member...]
+
+     * longitude ：经度
+     * latitude ：纬度
+     * member ：成员
+
+   * 更新地理位置信息：仍然可以使用geoadd，虽然已存在成员返回结果为0。
+
+   * 获取地理位置：geopos key member[member...]
+
+   * 获取两个地理位置距离：geodist key member1 member2 [unit]，unit：m/km/mi/ft
+
+   * 获取指定位置范围内的地理信息位置集合：
+
+     * georadius key longitude latitude radiusm|km|ft|mi  [withcoord] \[withdist]\[withhash]\[COUNT count]\[asc|desc]\[store key]\[storedist key]
+     * georadiusbymember key member radiusm|km|ft|mi  [withcoord] \[withdist]\[withhash]\[COUNT count]\[asc|desc]\[store key]\[storedist key]
+       * withcoord：返回结果包含经纬度
+       * withdist：返回结果包含离中心节点位置的距离
+       * withhash：返回结果中包含geohash。
+       * COUNT count：指定返回结果的数量。
+       * asc|desc：返回结果按离中心节点的距离做升序和降序。
+       * store key：将返回结果信息保存到指定键。
+       * storedist key：将返回结果离中心节点的距离保存在指定键。
+
+   * 获取geohash：geohash key member [member...]，将二维经纬度转换为一维字符串。
+
+     特点：
+
+     * GEO的数据类型为zset，redis将所有地理位置信息的geohash存放在zset中。
+     * 字符串越长位置越精确。
+     * 字符串越相似，距离越近。redis利用前缀匹配算法。
+     * geohash编码和经纬度是可以相互转换的。
+
+   * 删除地理位置信息：zrem key member
 
 ### 六.客户端
 
 #### 一.客户端通信协议
+
+
 
 #### 二.java客户端Jedis
 
