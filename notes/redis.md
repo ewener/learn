@@ -980,6 +980,8 @@ setnx key value
 
         自动触发时机=aof_current_size>auto-aof-rewrite-min-size&&(aof_current_size-aof_base_size)/aof_base_size>=auto-aof-rewrite-percentage
 
+      ![](https://github.com/XwDai/learn/raw/master/notes/image/redisAOF%E9%87%8D%E5%86%99%E8%BF%90%E8%A1%8C%E6%B5%81%E7%A8%8B.jpg)
+
       
 
 #### 三.问题定位与优化
