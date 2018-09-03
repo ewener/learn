@@ -945,7 +945,42 @@ setnx key value
 
 2. 文件同步
 
-   
+   redis提供了多种AOF缓冲区同步策略，由参数appendfsync控制。
+
+   ![](https://github.com/XwDai/learn/raw/master/notes/image/redisAof%E7%BC%93%E5%86%B2%E5%8C%BA%E5%90%8C%E6%AD%A5%E6%96%87%E4%BB%B6%E7%AD%96%E7%95%A5.jpg)
+
+   * write操作系统会触发延迟写机制。linux提供页缓冲区提高硬盘IO性能，write写入缓冲区后直接返回。同步硬盘依赖系统调度机制。如果系统宕机，数据将丢失。
+   * fsync针对单个文件操作，做强制硬盘同步，fsync阻塞到写入硬盘完成后返回。保证数据持久化。
+
+   1. always：每次都同步AOF文件，TPS低，性能不高，不建议配置。
+   2. no：操作系统调度周期不可控，性能提升了，但是数据安全性不高。
+   3. everysec：建议的同步策略。默认配置。兼顾性能和数据安全。理论上只有在系统宕机情况下丢失1s的数据。
+
+3. 重写机制
+
+   > 随着命令不断写入，文件会越来越大。redis引入AOF重写机制压缩文件体积。
+   >
+   > AOF重写是把redis进程内的数据转化为写命令同步到新的AOF文件的过程。
+   >
+   > 重写文件为何可以变小？
+   >
+   > 1. 进程内超时的数据不再写入文件。
+   > 2. 旧的AOF文件含有无效命令。像del key等这些命令就没用了，我是直接用的内存数据生成的命令，已经剔除了这个key。
+   > 3. 多条命令可以合并为一个。如，lpush list a,lpush list b,lpush list c可以转化为lpush list a b c。为了防止单条命令过大造成客户端缓冲区溢出，对于list、set、hash、zset等类型操作，以64个元素为界拆分成多条。
+   >
+   > 更小的AOF文件可以更快的被redis加载。
+
+   1. 手动触发：直接调用bgrewriteaof。
+
+   2. 自动触发：根据auto-aof-rewrite-min-size和auto-aof-rewrite-percentage确定触发时机。
+
+      * auto-aof-rewrite-min-size：运行AOF重写时文件最小体积，默认64M。
+
+      * auto-aof-rewrite-percentage：代表当前AOF文件空间aof_current_size和上一次重写AOF文件空间aof_base_size的比值。
+
+        自动触发时机=aof_current_size>auto-aof-rewrite-min-size&&(aof_current_size-aof_base_size)/aof_base_size>=auto-aof-rewrite-percentage
+
+      
 
 #### 三.问题定位与优化
 
