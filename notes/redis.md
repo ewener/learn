@@ -730,15 +730,162 @@ setnx key value
 
    ​    ![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E5%AE%A2%E6%88%B7%E7%AB%AF%E7%B1%BB%E5%9E%8B.jpg)
 
+   ![](https://github.com/XwDai/learn/raw/master/notes/image/redisclientlist%E5%91%BD%E4%BB%A4%E7%BB%93%E6%9E%9C%E5%B1%9E%E6%80%A7%E4%B8%80.jpg)
+
+   ![](https://github.com/XwDai/learn/raw/master/notes/image/redisclientlist%E5%91%BD%E4%BB%A4%E7%BB%93%E6%9E%9C%E5%B1%9E%E6%80%A7%E4%BA%8C.jpg)
+
+2. client setName、client getName
+
+   > client setName：给客户端设置名字，标识客户端来源。
+   >
+   > client getName：获取客户端名字。
+
+3. client kill
+
+   > client kill ip:port ：杀死指定ip:port的客户端。可用来杀死timeout=0的长期idle的客户端。
+
+4. client pause
+
+   > client pause timeout（毫秒）：阻塞客户端timeout毫秒数。在此期间，客户端被阻塞。
+
+   使用场景：
+
+   1. 只对普通和发布订阅客户端有效。对于主从复制(从节点内部伪装的客户端)无效。也就是此期间主从复制是正常运行的。所以此命令可以用来让主从复制保持一致。
+   2. 可以用一种可控方式将客户端连接从一个redis节点切换到另一个redis节点。
+
+   **注意：生产环境暂停客户端成本非常高**。
+
+5. monitor
+
+   > 用于监控redis正在执行的命令。
+
+   **注意：每个客户端都有自己的输出缓冲区，既然monitor能监控到所有命令，一旦redis并发量过大，monitor客户端输出缓冲区会暴涨，瞬间占用大量内存。**
+
+6. 客户端其他配置
+
+   1. tcp-keeplive：检测tcp连接活性周期，默认为0，不检测，设置可防止大量死链接占用系统资源。
+   2. tcp-backlog：tcp三次握手之后，会将接收的连接放入队列中，tcp-backlog就是队列的大小。redis默认值是511。通常不需要调整，但会受到操作系统的影响。如果比操作系统的设置大，redis启动时会有警告提示。
+
+7. 客户端统计：
+
+   1. info clients
+   2. info stats
+
 ####五.客户端常见异常
+
+1. could not get a resource from the pool...timeout waiting for idle object。
+
+   > 在maxWaitMillis时间内仍然无法获取到jedis对象。
+
+   当设置了blockWhenExhausted=false，那么发现池中没有资源之后，会立即抛异常：pool exhausted。
+
+   造成原因：
+
+   * 连接池设置过小。
+   * 没有正确使用连接池。比如使用之后没有释放。
+   * 存在慢查询操作。归还速度慢。
+   * 客户端正常，服务器由于一些原因造成客户端命令执行过程的阻塞。
+
+2. 客户端读写超时。read time out
+
+   * 读写超时设置过短。
+   * 命令本身比较慢。
+   * 客户端与服务端网络不正常。
+   * redis自身发生阻塞。
+
+3. 客户端连接超时。connect time out。
+
+   * 连接超时设置过短。
+   * redis发生阻塞。造成tcp-backlog已满。
+   * 客户端与服务端网络不正常。
+
+4. 客户端缓冲区异常。Unexpected end of stream。
+
+   * 输出缓冲区满。
+   * 长时间闲置连接被服务端断开。连接已关闭。
+   * 不正常并发读写。jedis的多线程并发问题，lettuce客户端解决了这个问题。
+
+5. Lua脚本正在执行。busy redis is busy running a script .you can only call script kill or shutdown nosave.
+
+   * 脚本执行耗时，阻塞redis。
+   * 脚本本身有问题。
+
+6. redis正在加载持久化文件。LOADING Redis is loading the dataset in memory.
+
+   * jedis调用redis时，如果redis正在加载持久化文件，会报此错。
+
+7. redis使用内存超过maxmemory。OOM command not allowed when use memory > 'maxmemory'
+
+8. 客户端连接数过大。ERR max number of clients reached 
+
+   无法通过redis命令修复。
+
+   从两个方面着手解决：
+
+   * maxClients参数不是很小的话，应用客户端基本不会超过，通常是客户端使用不当。分布式环境中可先下线部分应用节点。再查找程序bug或调整maxClients进行修复。
+   * 如果客户端无法处理，当redis为高可用模式(哨兵和集群)，可以考虑将当前redis做故障转移。
+
+   
+
 
 #### 六.客户端案例分析
 
+1. redis 内存陡增。
 
+   > 现象：
+   >
+   > > 服务端：主节点内存陡增，几乎满了，从节点内存没有变化。
+   >
+   > > 客户端：客户端OOM。
+   >
+   > 原因分析：
+   >
+   > 1. 确实有大量写入，但是主从复制出现问题。
+   >    * 查询主从节点键个数：dbsize ，一样说明复制是正确的。
+   > 2. 其他原因：排查是否由于客户端缓冲去造成主节点内存陡增。
+   >    * info clients。查看缓冲区是否正常。
+   >    * client list。找出omem不正常的连接。
+   >
+   > 处理方法：
+   >
+   > 1. 静止monitor。
+   > 2. 限制输出缓冲区大小。
+   > 3. 使用专用的运维工具，报警。
+
+2. 客户端周期性超时。
+
+   > 现象：
+   >
+   > > 客户端：大量超时。超时为周期性的。connect time out。
+   >
+   > > 服务端：没有明显异常，只是有一些慢查询操作。
+   >
+   > 分析：
+   >
+   > 1. 网络原因。
+   > 2. redis本身。
+   > 3. 客户端。
+   >
+   > 处理方法：
+   >
+   > 1. 监控慢查询。
+   > 2. 避免使用慢查询命令。
 
 ### 七.持久化
 
 #### 一.RDB
+
+> 把当前进程数据生成快照保存到硬盘的过程。分为手动触发和自动触发。
+
+1. 触发机制
+   * 手动触发：
+     * save(废弃)：阻塞redis服务器，直到RDB完成。内存比较大的实例阻塞时间长，线上不建议使用。
+     * bgsave：fork子进程持久化。完成后自动结束。阻塞只发生在fork阶段，一般时间很短。
+   * 自动触发：
+     * 使用save相关配置，如" save m n"，m表示m秒内数据存在修改时，自动触发bgsave。
+     * 从节点执行全量复制，主节点自动执行bgsave生成RDB文件发送给从节点。
+     * 执行debug reload 重新加载redis，也会触发save操作。
+     * 默认情况下执行shutdown，如果没有开启AOF持久化则执行bgsave。
 
 #### 二.AOF
 
