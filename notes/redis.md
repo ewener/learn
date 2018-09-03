@@ -728,6 +728,8 @@ setnx key value
 
    * 客户端类型：flag。flag=S代表是slave客户端，flag=N代表普通客户端，flag=O代表客户端正在执行monitor命令。
 
+   ​    ![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E5%AE%A2%E6%88%B7%E7%AB%AF%E7%B1%BB%E5%9E%8B.jpg)
+
 ####五.客户端常见异常
 
 #### 六.客户端案例分析
