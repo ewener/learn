@@ -878,6 +878,7 @@ setnx key value
 > 把当前进程数据生成快照保存到硬盘的过程。分为手动触发和自动触发。
 
 1. 触发机制
+
    * 手动触发：
      * save(废弃)：阻塞redis服务器，直到RDB完成。内存比较大的实例阻塞时间长，线上不建议使用。
      * bgsave：fork子进程持久化。完成后自动结束。阻塞只发生在fork阶段，一般时间很短。
@@ -887,7 +888,45 @@ setnx key value
      * 执行debug reload 重新加载redis，也会触发save操作。
      * 默认情况下执行shutdown，如果没有开启AOF持久化则执行bgsave。
 
+   ![](https://github.com/XwDai/learn/raw/master/notes/image/redisBgsave.jpg)
+
+   通过info Persistence查看rdb_*相关选项。
+
+2. RDB文件处理。
+
+   1. 保存：保存在dir配置指定目录下，文件名通过dbfilename指定。
+
+   2. 压缩：默认采用LZF算法对生成RDB文件压缩，压缩后的文件远远小于内存大小，默认开启。
+
+      > 提示：虽然压缩会消耗CPU，但可大幅降低文件体积。方便保存或通过网络发送。
+
+   3. 检验：如果redis加载损坏的RDB文件时拒绝启动。Short read or OOM loading DB. Unrecoverable error ,aborting now.
+
+      > 可以使用redis-check-dump工具检测RDB文件并获取对应的错误报告。
+
+3. RDB优缺点。
+
+   优点：
+
+   * RDB是一个紧凑压缩的二进制文件，代表redis某个时间点上的数据快照。非常适合用于备份，全量复制等场景。
+   * redis加载RDB回复数据远远快于AOF。
+
+   缺点：
+
+   * 没办法做到实时持久化/秒级持久化。fork属于重量级操作，频繁执行成本过高。
+   * 使用特定二进制格式保存，redis版本演进过程中有多个格式的RDB版本，存在兼容性问题。
+
 #### 二.AOF
+
+> 默认不开启，开启需配置：appendonly yes。
+>
+> AOF文件名通过appendfilename设置，默认文件名appendonly.aof。
+>
+> 保存路径与RDB一致，通过dir指定。
+>
+> AOF工作流程：命令写入(append)、文件同步(sync)、文件重写(rewrite)、重启加载(load)。
+>
+> 
 
 #### 三.问题定位与优化
 
