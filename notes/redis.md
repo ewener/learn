@@ -668,13 +668,27 @@ setnx key value
 
 #### 一.客户端通信协议
 
+1. 发送命令格式：
 
+![](https://github.com/XwDai/learn/raw/master/notes/image/redis%E5%8D%8F%E8%AE%AE.jpg)
+
+2. 返回结果格式
+
+   * 状态回复：在RESP中的第一个字节为“+”
+   * 错误回复：在RESP中的第一个字节为“-”
+   * 整数回复：在RESP中的第一个字节为“：”
+   * 字符串回复：在RESP中的第一个字节为“$”
+   * 多条字符串回复：在RESP中的第一个字节为“*”
+
+   注意：无论是字符串回复还是多条字符串回复，如果有nil值，那么会返回$-1。
 
 #### 二.java客户端Jedis
 
 ####三.java客户端Lettuce 
 
 #### 四.客户端管理
+
+1. client list：列出与服务端连接的所有客户端。
 
 ####五.客户端常见异常
 
