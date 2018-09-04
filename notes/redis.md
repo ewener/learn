@@ -1054,6 +1054,12 @@ setnx key value
 
 #### 四.多实例部署
 
+![](https://github.com/XwDai/learn/raw/master/notes/image/redisInfoPersistence%E5%BA%A6%E9%87%8F%E6%8C%87%E6%A0%87.jpg)
+
+> 单机多实例部署，并且都开启AOF，多个子进程彼此会产生CPU和IO竞争，因此，需要采用一种措施把子进程工作隔离。
+
+解决方案：我们可以基于上面指标，通过外部程序轮询控制AOF重写操作执行。
+
 
 
 ### 八.复制
