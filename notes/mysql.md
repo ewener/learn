@@ -4,21 +4,9 @@
 
 **问题**：lock wait timeout exceeded; try restarting transaction
 
-**原因**： 
+**原因**： 今天线上环境，突然出现一个问题，追踪原因是数据库中的一条语句报错，错误内容： **lock wait timeout exceeded; try restarting transaction** ，  执行update table set status = 1 where id = 10002;是可以的。 而执行update table set status = 1 where id = 10001;这条语句执行失败。  错误提示的意思，很明显，是因为这条语句被锁住了。所以释放这个锁。 现在我们要查test库中使用情况，我们可以到information_schema中查询 
 
-​       今天线上环境，突然出现一个问题，追踪原因是数据库中的一条语句报错，错误内容： 
-
-lock wait timeout exceeded; try restarting transaction 
-
-​       执行update table set status = 1 where id = 10002;是可以的。 
-
-​       而执行update table set status = 1 where id = 10001;这条语句执行失败。 
-
-​       错误提示的意思，很明显，是因为这条语句被锁住了。所以释放这个锁。
-
-​       现在我们要查test库中使用情况，我们可以到information_schema中查询 
-
-​       解释：information_schema这张数据表保存了MySQL服务器所有数据库的信息。如数据库名，数据库的表，表栏的数据类型与访问权限等。再简单点，这台MySQL服务器上，到底有哪些数据库、各个数据库有哪些表，每张表的字段类型是什么，各个数据库要什么权限才能访问，等等信息都保存在information_schema表里面。
+**解释**：information_schema这张数据表保存了MySQL服务器所有数据库的信息。如数据库名，数据库的表，表栏的数据类型与访问权限等。再简单点，这台MySQL服务器上，到底有哪些数据库、各个数据库有哪些表，每张表的字段类型是什么，各个数据库要什么权限才能访问，等等信息都保存在information_schema表里面。
 
 我们可以用下面三张表来查原因： 
 
@@ -28,37 +16,21 @@ lock wait timeout exceeded; try restarting transaction
 
 ​       innodb_lock_waits ## 锁等待的对应关系
 
-​        
+如果数据库中有锁的话，我们需要杀掉这个锁，执行 kill 线程id号。 
 
-如果数据库中有锁的话，那么在 
+其他记录状态为“RUNNING” 即正在执行的事务，并没有锁，不需要关注
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/7a178eab70694d56a27028b59844c684/clipboard.png)
+我们可以进一步了解一下 那三张表的表结构：
 
-​        
-
-​       图中红色语句为占用系统资源的语句，我们需要杀掉这个锁，执行 kill 线程id号。上面这条记录的id为319618246 
-
-所以我们执行：kill 319618246即可 
-
-执行之后： 
-
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/50339d893f4843ceb8038ab2d04452aa/clipboard.png)
-
-​        
-
-其他的记录不需要关注，因为其他的记录状态为“RUNNING” 即正在执行的事务，并没有锁。。
-
-​       我们可以进一步了解一下 那三张表的表结构：
-
-desc information_schema.innodb_locks;
+* desc information_schema.innodb_locks;
 
 ![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/916ef2b73556485d9fafbe58da4d2d50/clipboard.png)
 
-desc information_schema.innodb_lock_waits
+* desc information_schema.innodb_lock_waits
 
 ![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/2fc9cb8c3c5e4a2a93eea4d7aca3211c/clipboard.png)
 
-desc information_schema.innodb_trx ;
+* desc information_schema.innodb_trx ;
 
 ![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/4316e2a170c1474e85cc19053fbaf7f1/clipboard.png)
 
@@ -103,19 +75,34 @@ MySQL在5.5.3之后增加了这个utf8mb4的编码，mb4就是most bytes 4的意
   三种情况： 
 
   * **id相同**：执行顺序由上至下 
+
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/id%E7%9B%B8%E5%90%8C.png)
+
   * **id不同**：如果是子查询，id的序号会递增，id值越大优先级越高，越先被执行 
+
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/id%E4%B8%8D%E5%90%8C.png)
+
   * **id相同又不同（两种情况同时存在）**：id如果相同，可以认为是一组，从上往下顺序执行；在所有组中，id值越大，优先级越高，越先执行 
+
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/id%E7%9B%B8%E5%90%8C%E5%8F%88%E4%B8%8D%E5%90%8C.png)
 
 * **select_type**
 
   查询的类型，主要是用于区分普通查询、联合查询、子查询等复杂的查询
 
   * **SIMPLE**：简单的select查询，查询中不包含子查询或者union 
+
   * **PRIMARY**：查询中包含任何复杂的子部分，最外层查询则被标记为primary 
+
   * **SUBQUERY**：在select 或 where列表中包含了子查询 
+
   * **DERIVED**：在from列表中包含的子查询被标记为derived（衍生），mysql或递归执行这些子查询，把结果放在零时表里 
+
   * **UNION**：若第二个select出现在union之后，则被标记为union；若union包含在from子句的子查询中，外层select将被标记为derived 
+
   * **UNION RESULT**：从union表获取结果的select 
+
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/unionresult.png)
 
 * **type**
 
@@ -125,17 +112,27 @@ MySQL在5.5.3之后增加了这个utf8mb4的编码，mb4就是most bytes 4的意
 
   * **const**：表示通过索引一次就找到了，const用于比较primary key 或者 unique索引。因为只需匹配一行数据，所有很快。如果将主键置于where列表中，mysql就能将该查询转换为一个const 
 
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/const_system.png)
+
   * **eq_ref**：唯一性索引扫描，对于每个索引键，表中只有一条记录与之匹配。常见于主键 或 唯一索引扫描。 
 
     注意：ALL全表扫描的表记录最少的表如t1表
 
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/eq_ref.png)
+
   * **ref**：非唯一性索引扫描，返回匹配某个单独值的所有行。本质是也是一种索引访问，它返回所有匹配某个单独值的行，然而他可能会找到多个符合条件的行，所以它应该属于查找和扫描的混合体 
 
-  * **range**：只检索给定范围的行，使用一个索引来选择行。key列显示使用了那个索引。一般就是在where语句中出现了bettween、<、>、in等的查询。这种索引列上的范围扫描比全索引扫描要好。只需要开始于某个点，结束于另一个点，不用扫描全部索引 
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/ref.png)
+
+  * **range**：只检索给定范围的行，使用一个索引来选择行。key列显示使用了那个索引。一般就是在where语句中出现了bettween、<、>、in等的查询。这种索引列上的范围扫描比全索引扫描要好。只需要开始于某个点，结束于另一个点，不用扫描全部索引 ![](https://github.com/XwDai/learn/raw/master/notes/image/range.png)
 
   * **index**：Full Index Scan，index与ALL区别为index类型只遍历索引树。这通常为ALL块，应为索引文件通常比数据文件小。（Index与ALL虽然都是读全表，但index是从索引中读取，而ALL是从硬盘读取） 
 
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/index.png)
+
   * **ALL**：Full Table Scan，遍历全表以找到匹配的行 
+
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/all.png)
 
 * possible_keys
 
@@ -144,6 +141,10 @@ MySQL在5.5.3之后增加了这个utf8mb4的编码，mb4就是most bytes 4的意
 * key
 
   实际使用的索引，如果为NULL，则没有使用索引。 查询中如果使用了覆盖索引，则该索引仅出现在key列表中 
+
+  ![](https://github.com/XwDai/learn/raw/master/notes/image/key1.png)
+
+  ![](https://github.com/XwDai/learn/raw/master/notes/image/key2.png)
 
 * key_len
 
@@ -163,9 +164,15 @@ MySQL在5.5.3之后增加了这个utf8mb4的编码，mb4就是most bytes 4的意
 
   * **Using filesort** ： mysql对数据使用一个外部的索引排序，而不是按照表内的索引进行排序读取。也就是说mysql无法利用索引完成的排序操作成为“文件排序” 由于索引是先按email排序、再按address排序，所以查询时如果直接按address排序，索引就不能满足要求了，mysql内部必须再实现一次“文件排序”
 
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/filesort.png)
+
   * **Using temporary**： 使用临时表保存中间结果，也就是说mysql在对查询结果排序时使用了临时表，常见于order by 和 group by 
 
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/temporary.png)
+
   * **Using index**： 表示相应的select操作中使用了**覆盖索引**（Covering Index），避免了访问表的数据行，效率高 如果同时出现Using where，表明索引被用来执行索引键值的查找（参考上图） 如果没用同时出现Using where，表明索引用来读取数据而非执行查找动作 
+
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/usingindex.png)
 
   * 覆盖索引**（Covering Index）：也叫索引覆盖。就是select列表中的字段，只用从索引中就能获取，不必根据索引再次读取数据文件，换句话说**查询列要被所建的索引覆盖**。 
 
@@ -181,11 +188,15 @@ MySQL在5.5.3之后增加了这个utf8mb4的编码，mb4就是most bytes 4的意
 
   * Impossible WHERE： where子句的值总是false，不能用来获取任何元祖 
 
+    ![](https://github.com/XwDai/learn/raw/master/notes/image/impossiblewhere.png)
+
   * select tables optimized away： 在没有group by子句的情况下，基于索引优化MIN/MAX操作或者对于MyISAM存储引擎优化COUNT（*）操作，不必等到执行阶段在进行计算，查询执行计划生成的阶段即可完成优化
 
   * distinct： 优化distinct操作，在找到第一个匹配的元祖后即停止找同样值得动作
 
 #### 3.综合Case
+
+![](https://github.com/XwDai/learn/raw/master/notes/image/综合case.png)
 
 **执行顺序** 
 
