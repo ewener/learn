@@ -1,3 +1,5 @@
+[TOC]
+
 #### 一. 对git流程的第一印象图
 
 ![git流程](http://images.gitbook.cn/b2ec3d60-48fa-11e7-8b18-b174b07d5eed)
@@ -318,3 +320,17 @@
 
 * git branch -d dev //删除本地分支 
 * git push origin --delete <branch>  //删除远程分支，支持在v1.7.0之后。之前使用git push origin :<branch> 推送个空分支到远程仓库达到删除目的。 
+
+####三.git客户端问题
+
+#####1.client does not support authentication
+
+~~~mysql
+mysql> alter user 'root'@'localhost' identified with mysql_native_password by '123456';
+Query OK, 0 rows affected (0.10 sec)
+mysql> flush privileges;
+Query OK, 0 rows affected (0.01 sec)
+~~~
+
+
+
