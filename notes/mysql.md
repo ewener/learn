@@ -24,15 +24,15 @@
 
 * desc information_schema.innodb_locks;
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/916ef2b73556485d9fafbe58da4d2d50/clipboard.png)
+![img](https://github.com/XwDai/learn/raw/master/notes/image/innodb_locks.png)
 
 * desc information_schema.innodb_lock_waits
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/2fc9cb8c3c5e4a2a93eea4d7aca3211c/clipboard.png)
+![img](https://github.com/XwDai/learn/raw/master/notes/image/innodb_lock_waits.png)
 
 * desc information_schema.innodb_trx ;
 
-![img](D:/mkdown/qq119604AC6A460688138C5CD0E2484784/4316e2a170c1474e85cc19053fbaf7f1/clipboard.png)
+![img](https://github.com/XwDai/learn/raw/master/notes/image/innodb_trx.png)
 
 ## 二.常用语句
 
